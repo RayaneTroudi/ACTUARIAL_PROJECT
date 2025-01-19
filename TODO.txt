@@ -1,0 +1,4 @@
+# Get the level rain of each day in a period of 20 years.
+# Use the TCL (statistical method to be sure of the level rain of each day) -> average of each day during 20 years
+# Build a panda array of 365 lines
+# Modelling the premium of the insurance
