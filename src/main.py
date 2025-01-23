@@ -1,63 +1,103 @@
 import requests
-import json
 import urllib.parse
+import csv
+import pandas as pd
 
-def getWeatherDataForOneYear(begin_year:int, end_year:int):
 
+
+def getWeatherDataForOneYear(begin_year: int):
+    """
+    Fetch weather data for a single year.
+    """
     DAY_DURATION = 24
-    DICT_EACH_YEAR = {}
-    
-    for year in range(begin_year, end_year):
-        
-        ALL_RAIN_DATA = []
-    
-        base_url = "https://www.infoclimat.fr/opendata/"
-        params = {
-            "version": "2", 
-            "method": "get",
-            "format": "json",  # use JSON format
-            "stations[]": "07690",  # id of the Nice Weather Station
-            "start": str(year)+"-01-01",  # begin date of the period
-            "end": str(year)+"-12-31",  # end date of the period
-            "token": "eZucxR2pA3oDfiWFlItshDc2Yzj9OIYSGevDhKtx9KZmkBjfedXQ"  # token
-        }
+    ALL_RAIN_DATA = []
 
-        query_string = "&".join([f"{key}={urllib.parse.quote(str(value))}" for key, value in params.items()])
-        API_URL = f"{base_url}?{query_string}"
-        
-        try:
-            response = requests.get(API_URL)
-            if response.status_code == 200:
-                
-                data = response.json()
-    
-                cum_rain_in_day = 0
-                idx_24_hours = 0
-                
-                for data_in_hour in data["hourly"]["07690"]:
-                    
-                    # If pluie_1h is None or null, we replace it with 0
-                    pluie_1h = data_in_hour.get("pluie_1h")
-                    if pluie_1h is None:
-                        pluie_1h = 0
-                    
-                    cum_rain_in_day = cum_rain_in_day + float(pluie_1h)
-                    idx_24_hours = idx_24_hours + 1
-                    
-                    if idx_24_hours % DAY_DURATION == 0:  # we get 24 hours -> compute the average rain of the day
-                        ALL_RAIN_DATA.append(cum_rain_in_day)  # append the cumulative rain of the day
-                        idx_24_hours = 0  # reset to 0 for the next day
-                        cum_rain_in_day = 0  # reset to 0 for the next day too
-                
-                DICT_EACH_YEAR[year] = ALL_RAIN_DATA.copy()
-                ALL_RAIN_DATA.clear()
-                print("Success: Data retrieved")
-            else:
-                print(f"Error: {response.status_code}: {response.text}")
-        except Exception as e:
-            print(f"Error during requesting: {e}")
-    
-    return DICT_EACH_YEAR
+    base_url = "https://www.infoclimat.fr/opendata/"
+    params = {
+        "version": "2",
+        "method": "get",
+        "format": "json",
+        "stations[]": "07690",
+        "start": f"{begin_year}-01-01",
+        "end": f"{begin_year}-12-31",
+        "token": "eZucxR2pA3oDfiWFlItshDc2Yzj9OIYSGevDhKtx9KZmkBjfedXQ",
+    }
 
-DICT_FINAL = getWeatherDataForOneYear(2020, 2022)
-print(DICT_FINAL.keys())
+    query_string = "&".join([f"{key}={urllib.parse.quote(str(value))}" for key, value in params.items()])
+    API_URL = f"{base_url}?{query_string}"
+
+    try:
+        response = requests.get(API_URL)
+        if response.status_code == 200:
+            data = response.json()
+            cum_rain_in_day = 0
+            idx_24_hours = 0
+
+            for data_in_hour in data["hourly"]["07690"]:
+                pluie_1h = data_in_hour.get("pluie_1h", 0) or 0
+                cum_rain_in_day += float(pluie_1h)
+                idx_24_hours += 1
+
+                if idx_24_hours % DAY_DURATION == 0:
+                    ALL_RAIN_DATA.append(round(cum_rain_in_day, 1))
+                    cum_rain_in_day = 0
+                    idx_24_hours = 0
+
+            print(f"Success: Data retrieved for year {begin_year}")
+        else:
+            print(f"Error: {response.status_code}: {response.text}")
+    except Exception as e:
+        print(f"Error during request: {e}")
+
+    return ALL_RAIN_DATA
+
+
+def getHistoricalRainFallBetweenTwoYears(start_year: int, end_year: int):
+    """
+    Fetch historical rainfall data for a range of years.
+    """
+    DICT_HISTORICAL_DATA_RAIN = {}
+
+    for year in range(start_year, end_year + 1):
+        rain_year_tmp = getWeatherDataForOneYear(year)
+        DICT_HISTORICAL_DATA_RAIN[year] = rain_year_tmp
+
+    return DICT_HISTORICAL_DATA_RAIN
+
+
+def writeHistoricalRainFallBetweenTwoYears(start_year: int, end_year: int, file_name: str):
+    """
+    Write historical rainfall data for a range of years to a CSV file.
+    """
+    # Fetch historical rainfall data
+    historical_data = getHistoricalRainFallBetweenTwoYears(start_year, end_year)
+
+    # Open the CSV file in write mode
+    with open(file_name, mode='w', newline='') as file:
+        writer = csv.writer(file)
+
+        # Write the header row with years
+        header = ["Day"] + [str(year) for year in range(start_year, end_year + 1)]
+        writer.writerow(header)
+
+        # Determine the maximum number of days (assuming 365 days per year)
+        num_days = 365
+
+        # Write the data row by row for each day
+        for day in range(num_days):
+            row = [day + 1]  # Day number starts at 1
+            for year in range(start_year, end_year + 1):
+                # Append the rainfall data for each year (use 0 if data is missing)
+                rainfall = historical_data.get(year, [])
+                row.append(rainfall[day] if day < len(rainfall) else 0)
+
+            # Write the row to the CSV file
+            writer.writerow(row)
+
+    print(f"Historical rainfall data for {start_year} to {end_year} written to {file_name}")
+
+
+# Example usage:
+writeHistoricalRainFallBetweenTwoYears(start_year=2004, end_year=2024, file_name="weather_data_by_year.csv")
+df = pd.read_csv("weather_data_by_year.csv")
+print(df.head())
