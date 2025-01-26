@@ -16,7 +16,7 @@ df_final_weather = getWeatherTable(df_weather_all_year)
 print(df_weather_all_year)
 
 
-CA = 90000.0
+CA = 245
 C_f = 10.0
 pl_bar = 15.0
 pl_t = df_final_weather.to_numpy()[:,0]
