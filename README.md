@@ -2,6 +2,6 @@
 
 ## This project consists of a pricing of a weather insurance : the risk is the rain.
 
-### See the paper on the code directly for more information
+### See the paper on the code directly for more informations
 
 
