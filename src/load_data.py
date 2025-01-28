@@ -4,6 +4,7 @@ import requests
 import urllib.parse
 import csv
 import pandas as pd
+import numpy as np
 
 def getWeatherDataForOneYear(begin_year: int):
     """
@@ -28,8 +29,10 @@ def getWeatherDataForOneYear(begin_year: int):
 
     try:
         response = requests.get(API_URL)
+
         if response.status_code == 200:
             data = response.json()
+     
             cum_rain_in_day = 0
             idx_24_hours = 0
 
@@ -65,6 +68,7 @@ def getHistoricalRainFallBetweenTwoYears(start_year: int, end_year: int):
     return DICT_HISTORICAL_DATA_RAIN
 
 
+
 def writeHistoricalRainFallBetweenTwoYears(start_year: int, end_year: int, file_name: str):
     """
     Write historical rainfall data for a range of years to a CSV file.
@@ -96,16 +100,17 @@ def writeHistoricalRainFallBetweenTwoYears(start_year: int, end_year: int, file_
 
     print(f"Historical rainfall data for {start_year} to {end_year} written to {file_name}")
 
-def getWeatherTable(df_all_years:pd.DataFrame) -> pd.DataFrame:
+
+
+def getWeatherTable(df_all_years:pd.DataFrame) -> np.array:
     
     df_final = pd.DataFrame()
     df_final["Rain_in_mm"] = df_all_years.sum(axis=1)
     df_final["Rain_in_mm"] = round(df_final["Rain_in_mm"] / len(df_all_years.columns),1)
     
-    return df_final
+    return df_final.to_numpy()[:,0]
     
-    
-    
+
     
     
 
