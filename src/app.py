@@ -1,11 +1,10 @@
 #_______________ APP.PY _______________
+# MAIN OF THE APPLICATION
 
-
-import pandas as pd
-import numpy as np
-from formulas import getR_pl_t
-from load_data import *
 from gui import initLaunchGui
 
-initLaunchGui()
+def main():
+    initLaunchGui()
+    
+main()
 
