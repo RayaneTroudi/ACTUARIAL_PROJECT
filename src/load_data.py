@@ -1,16 +1,35 @@
 # _______________ LOAD_DATA.PY _______________
 
+# CONTAINS ALL FUNCTION TO GET DATA BETWEEN TWO DATE 
+# THIS FILE USE THE CSV HISTORY FOR BETTER PERFORMANCE
+# AND GET NEW DATA IN REAL-TIME
+
 import requests
 import urllib.parse
-import csv
 import pandas as pd
+import numpy as np
+from datetime import date, timedelta
 
-def getWeatherDataForOneYear(begin_year: int):
+
+
+
+def getWeatherDataFromServer(begin_date:date,end_date:date) -> np.array:
+    """Get all the data between dates for a MAXIMUM of (365 days) by requeting the server
+
+    Args:
+        begin_date (date): _description_
+        end_date (date): _description_
+
+    Returns:
+        np.array: _description_
     """
-    Fetch weather data for a single year.
-    """
+    
     DAY_DURATION = 24
+    YEAR_DURATION = 365
     ALL_RAIN_DATA = []
+
+    if ((end_date-begin_date).days) > YEAR_DURATION:
+        raise ValueError("Attention l'écart entre les deux dates dépassent 1 an")
 
     base_url = "https://www.infoclimat.fr/opendata/"
     params = {
@@ -18,8 +37,8 @@ def getWeatherDataForOneYear(begin_year: int):
         "method": "get",
         "format": "json",
         "stations[]": "07690",
-        "start": f"{begin_year}-01-01",
-        "end": f"{begin_year}-12-31",
+        "start": begin_date.strftime("%Y-%m-%d"),
+        "end": end_date.strftime("%Y-%m-%d"), # AAAA-MM-DD
         "token": "eZucxR2pA3oDfiWFlItshDc2Yzj9OIYSGevDhKtx9KZmkBjfedXQ",
     }
 
@@ -28,8 +47,10 @@ def getWeatherDataForOneYear(begin_year: int):
 
     try:
         response = requests.get(API_URL)
+
         if response.status_code == 200:
             data = response.json()
+     
             cum_rain_in_day = 0
             idx_24_hours = 0
 
@@ -43,7 +64,7 @@ def getWeatherDataForOneYear(begin_year: int):
                     cum_rain_in_day = 0
                     idx_24_hours = 0
 
-            print(f"Success: Data retrieved for year {begin_year}")
+            print(f"Success: Data retrieved for year period {begin_date} to {end_date}")
         else:
             print(f"Error: {response.status_code}: {response.text}")
     except Exception as e:
@@ -52,60 +73,63 @@ def getWeatherDataForOneYear(begin_year: int):
     return ALL_RAIN_DATA
 
 
-def getHistoricalRainFallBetweenTwoYears(start_year: int, end_year: int):
-    """
-    Fetch historical rainfall data for a range of years.
-    """
-    DICT_HISTORICAL_DATA_RAIN = {}
 
-    for year in range(start_year, end_year + 1):
-        rain_year_tmp = getWeatherDataForOneYear(year)
-        DICT_HISTORICAL_DATA_RAIN[year] = rain_year_tmp
+def getHistoricalRainFallBetweenDates(begin_date: date, end_date: date):
 
-    return DICT_HISTORICAL_DATA_RAIN
-
-
-def writeHistoricalRainFallBetweenTwoYears(start_year: int, end_year: int, file_name: str):
-    """
-    Write historical rainfall data for a range of years to a CSV file.
-    """
-    # Fetch historical rainfall data
-    historical_data = getHistoricalRainFallBetweenTwoYears(start_year, end_year)
-
-    # Open the CSV file in write mode
-    with open(file_name, mode='w', newline='') as file:
-        writer = csv.writer(file)
-
-        # Write the header row with years
-        header = [str(year) for year in range(start_year, end_year + 1)]
-        writer.writerow(header)
-
-        # Determine the maximum number of days (assuming 365 days per year)
-        num_days = 365
-
-        # Write the data row by row for each day
-        for day in range(num_days):
-            row = [day + 1]  # Day number starts at 1
-            for year in range(start_year, end_year + 1):
-                # Append the rainfall data for each year (use 0 if data is missing)
-                rainfall = historical_data.get(year, [])
-                row.append(rainfall[day] if day < len(rainfall) else 0)
-
-            # Write the row to the CSV file
-            writer.writerow(row)
-
-    print(f"Historical rainfall data for {start_year} to {end_year} written to {file_name}")
-
-def getWeatherTable(df_all_years:pd.DataFrame) -> pd.DataFrame:
+    YEAR_DURATION = 365  
+    no_day_between = (end_date - begin_date).days
     
-    df_final = pd.DataFrame()
-    df_final["Rain_in_mm"] = df_all_years.sum(axis=1)
-    df_final["Rain_in_mm"] = round(df_final["Rain_in_mm"] / len(df_all_years.columns),1)
+    if no_day_between <= 0:
+        raise ValueError("La date de début doit être antérieure à la date de fin.")
     
-    return df_final
+    new_date_retrieve = begin_date
+    ALL_DATA_RAIN_PERIOD = np.array([])  
     
+    if no_day_between < 365:
+        return getWeatherDataFromServer(begin_date,end_date)
     
+    while no_day_between > YEAR_DURATION:
+
+        tmp_data_get = getWeatherDataFromServer(
+            new_date_retrieve,
+            new_date_retrieve + timedelta(days=YEAR_DURATION)
+        )
+        
+        ALL_DATA_RAIN_PERIOD = np.concatenate((ALL_DATA_RAIN_PERIOD, tmp_data_get))
+        
+
+        new_date_retrieve += timedelta(days=YEAR_DURATION)
+        no_day_between -= YEAR_DURATION
     
+    tmp_data_get = getWeatherDataFromServer(
+        new_date_retrieve,
+        new_date_retrieve + timedelta(days=no_day_between)
+    )
     
+    ALL_DATA_RAIN_PERIOD = np.concatenate((ALL_DATA_RAIN_PERIOD, tmp_data_get))
     
+    return ALL_DATA_RAIN_PERIOD
+
+
+
+    
+def loadDataForPricing(file_name:str,start_date:date,end_date:date) -> np.ndarray: # cette fonction a pour but d'améliorer le temps d'exécution du pricing
+    
+    df_history_rain = pd.read_csv(file_name,sep=",")
+    
+    days_in_month = [31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31]
+    year = start_date.year
+    year_pos = df_history_rain.columns.get_loc(str(year))
+    day_since_begin_year = sum(days_in_month[:start_date.month - 1]) + start_date.day
+    half_year = df_history_rain.iloc[day_since_begin_year:,year_pos].to_numpy()
+    all_year = df_history_rain.iloc[:,(year_pos+1):].to_numpy().ravel()
+
+    if (end_date < date.today()):
+        data_remaining = []
+    else:
+        data_remaining = getHistoricalRainFallBetweenDates(date(2025,1,1),end_date)
+        
+    
+    return np.concatenate([half_year,all_year,data_remaining])
+   
 
