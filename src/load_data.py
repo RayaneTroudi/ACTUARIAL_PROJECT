@@ -8,20 +8,22 @@ import requests
 import urllib.parse
 import pandas as pd
 import numpy as np
+
 from datetime import date, timedelta
 
 
+# -------------------------------------------------------------------------------------------------- #
 
 
 def getWeatherDataFromServer(begin_date:date,end_date:date) -> np.array:
-    """Get all the data between dates for a MAXIMUM of (365 days) by requeting the server
 
-    Args:
-        begin_date (date): _description_
-        end_date (date): _description_
+    """This function get the rain data day by day in a MAXIMUM of 365 days by request (due to the general uses conditions of the site)
+
+    Raises:
+        ValueError: beyond one year of data
 
     Returns:
-        np.array: _description_
+        (np.array): an array that contains all level of rain of each day during at a maximum of 365 days
     """
     
     DAY_DURATION = 24
@@ -32,6 +34,8 @@ def getWeatherDataFromServer(begin_date:date,end_date:date) -> np.array:
         raise ValueError("Attention l'écart entre les deux dates dépassent 1 an")
 
     base_url = "https://www.infoclimat.fr/opendata/"
+    
+    # parameters of the request
     params = {
         "version": "2",
         "method": "get",
@@ -45,6 +49,7 @@ def getWeatherDataFromServer(begin_date:date,end_date:date) -> np.array:
     query_string = "&".join([f"{key}={urllib.parse.quote(str(value))}" for key, value in params.items()])
     API_URL = f"{base_url}?{query_string}"
 
+    # launch the request
     try:
         response = requests.get(API_URL)
 
@@ -56,9 +61,12 @@ def getWeatherDataFromServer(begin_date:date,end_date:date) -> np.array:
 
             for data_in_hour in data["hourly"]["07690"]:
                 pluie_1h = data_in_hour.get("pluie_1h", 0) or 0
+                
+                # cumulate rain hour by hour
                 cum_rain_in_day += float(pluie_1h)
                 idx_24_hours += 1
 
+                # a day is passed 
                 if idx_24_hours % DAY_DURATION == 0:
                     ALL_RAIN_DATA.append(round(cum_rain_in_day, 1))
                     cum_rain_in_day = 0
@@ -72,9 +80,16 @@ def getWeatherDataFromServer(begin_date:date,end_date:date) -> np.array:
 
     return ALL_RAIN_DATA
 
+# -------------------------------------------------------------------------------------------------- #
+
 
 
 def getHistoricalRainFallBetweenDates(begin_date: date, end_date: date):
+    
+    """This function is an extension of the first one, the difference is that you can chosse date dates where 
+       the difference between them are greater than 365 days
+
+    """
 
     YEAR_DURATION = 365  
     no_day_between = (end_date - begin_date).days
@@ -83,11 +98,14 @@ def getHistoricalRainFallBetweenDates(begin_date: date, end_date: date):
         raise ValueError("La date de début doit être antérieure à la date de fin.")
     
     new_date_retrieve = begin_date
+    # initializing the numpy array
     ALL_DATA_RAIN_PERIOD = np.array([])  
     
-    if no_day_between < 365:
+    # duration < 365 call the first function
+    if no_day_between < YEAR_DURATION:
         return getWeatherDataFromServer(begin_date,end_date)
     
+    # > 365 call several times the first function to do not break the rule of the site (1 request of 365 days at maximum)
     while no_day_between > YEAR_DURATION:
 
         tmp_data_get = getWeatherDataFromServer(
@@ -95,41 +113,69 @@ def getHistoricalRainFallBetweenDates(begin_date: date, end_date: date):
             new_date_retrieve + timedelta(days=YEAR_DURATION)
         )
         
+        # concatenate the array
         ALL_DATA_RAIN_PERIOD = np.concatenate((ALL_DATA_RAIN_PERIOD, tmp_data_get))
         
 
         new_date_retrieve += timedelta(days=YEAR_DURATION)
         no_day_between -= YEAR_DURATION
     
+    # last call at the end of the while
     tmp_data_get = getWeatherDataFromServer(
         new_date_retrieve,
         new_date_retrieve + timedelta(days=no_day_between)
     )
     
+    # return the data containing rain level during a period 
     ALL_DATA_RAIN_PERIOD = np.concatenate((ALL_DATA_RAIN_PERIOD, tmp_data_get))
     
     return ALL_DATA_RAIN_PERIOD
 
+# -------------------------------------------------------------------------------------------------- #
 
 
     
-def loadDataForPricing(file_name:str,start_date:date,end_date:date) -> np.ndarray: # cette fonction a pour but d'améliorer le temps d'exécution du pricing
-    
+def loadDataForPricing(file_name:str,start_date:date,end_date:date) -> np.ndarray: 
+    """This function aims to improve the execution time of the application by use an history of level rain data that build
+       before the execution manually by us. This historic have a depth of 20 years by default.
+       You can change this history by launch manually the fild starting by <[old] ... > see the comment in this file 
+       for more informations.
+
+    Args:
+        file_name (str): file name of the history
+        start_date (date): start date that you want to get the level rain data
+        end_date (date): end date that you want to get the level rain data
+
+    Returns:
+        np.ndarray: an array that contains all data rain level by day during the period
+    """
     df_history_rain = pd.read_csv(file_name,sep=",")
     
+    # leap year is ignored
     days_in_month = [31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31]
+    
     year = start_date.year
     year_pos = df_history_rain.columns.get_loc(str(year))
-    day_since_begin_year = sum(days_in_month[:start_date.month - 1]) + start_date.day
-    half_year = df_history_rain.iloc[day_since_begin_year:,year_pos].to_numpy()
-    all_year = df_history_rain.iloc[:,(year_pos+1):].to_numpy().ravel()
 
+    # get the data from the history by reading him
+    day_since_begin_year = sum(days_in_month[:start_date.month - 1]) + start_date.day - 1
+    half_year = df_history_rain.iloc[day_since_begin_year:,year_pos].to_numpy()
+
+    if (date.today().year  < 2024 ):
+        end_year_pos = df_history_rain.columns.get_loc(str(end_date.year))
+        all_year = df_history_rain.iloc[:,(year_pos):end_year_pos].to_numpy().ravel()
+    else:
+        all_year = df_history_rain.iloc[:,(year_pos):23].to_numpy().ravel()
+
+    # get the data that are not present in the history (because the history contains data since 31/12/2024) in real-time
     if (end_date < date.today()):
         data_remaining = []
     else:
         data_remaining = getHistoricalRainFallBetweenDates(date(2025,1,1),end_date)
         
-    
+
     return np.concatenate([half_year,all_year,data_remaining])
    
+# -------------------------------------------------------------------------------------------------- #
+
 
