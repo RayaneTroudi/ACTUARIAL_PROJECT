@@ -92,9 +92,9 @@ def getRWithLosesWithoutInsurance(R_pl_t:np.array) -> float:
 # -------------------------------------------------------------------------------------------------- #
 
 
-def getBenchmark(year:int,CA:float,C_f:float,pl_bar:float,years:int):
+def getBenchmark(year:int,CA:float,C_f:float,pl_bar:float,years:int,id_city:str):
     
-    array_year_rain = np.array(getWeatherDataFromServer(date(year,1,1),date(year,12,31)))
+    array_year_rain = np.array(getWeatherDataFromServer(date(year,1,1),date(year,12,31),id_city))
     R_pl_t_year = getR_pl_t(CA,C_f,pl_bar,array_year_rain)
     return getAllLoses(R_pl_t_year),getRWithLosesWithInsurance(R_pl_t_year,years),getRWithLosesWithoutInsurance(R_pl_t_year)
 

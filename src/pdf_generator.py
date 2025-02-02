@@ -21,12 +21,11 @@ def getPdf(pdf_filename:str,
                  end_date:date,
                  year_benchmark:int):
     
-    # 📄 Création du document PDF
     c = canvas.Canvas(pdf_filename, pagesize=letter)
     width, height = letter  # Dimensions de la page
 
     # 📌 Ajouter un titre centré
-    title = "Devis d'Assurance"
+    title = f"Devis d'assurance et récapitulatif de retrospection sur l'année {year_benchmark}"
     c.setFont("Helvetica-Bold", 16)
     text_width = c.stringWidth(title, "Helvetica-Bold", 16)
     c.drawString((width - text_width) / 2, height - 50, title)  # Centrer le titre

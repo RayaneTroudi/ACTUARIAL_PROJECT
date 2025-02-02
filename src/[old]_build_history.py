@@ -10,7 +10,7 @@ import urllib.parse
 import csv
 import pandas as pd
 
-def getWeatherDataForOneYear(begin_year: int):
+def getWeatherDataForOneYear(begin_year: int,id_station:str):
     """
     Fetch weather data for a single year.
     """
@@ -22,7 +22,7 @@ def getWeatherDataForOneYear(begin_year: int):
         "version": "2",
         "method": "get",
         "format": "json",
-        "stations[]": "07690",
+        "stations[]": id_station,
         "start": f"{begin_year}-01-01",
         "end": f"{begin_year}-12-31",
         "token": "eZucxR2pA3oDfiWFlItshDc2Yzj9OIYSGevDhKtx9KZmkBjfedXQ",
@@ -38,7 +38,7 @@ def getWeatherDataForOneYear(begin_year: int):
             cum_rain_in_day = 0
             idx_24_hours = 0
 
-            for data_in_hour in data["hourly"]["07690"]:
+            for data_in_hour in data["hourly"][id_station]:
                 pluie_1h = data_in_hour.get("pluie_1h", 0) or 0
                 cum_rain_in_day += float(pluie_1h)
                 idx_24_hours += 1
@@ -109,6 +109,8 @@ def getWeatherTable(df_all_years:pd.DataFrame) -> pd.DataFrame:
     
     return df_final
     
+    
+# BY DEFAULT WE USE A TIME PERIOD OF 20 YEARS BETWEEN 2004 AND 2024
 writeHistoricalRainFallBetweenTwoYears(2000,2024,"./weather_data_by_year")   
     
     

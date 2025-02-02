@@ -9,7 +9,6 @@ from datetime import *
 from dateutil.relativedelta import relativedelta
 
 import streamlit as st
-import pandas as pd
 import os
 
 
@@ -20,8 +19,19 @@ def initLaunchGui():
  
     with st.container():
         
+        if (len(getTokenInFile("./token.txt")) == 0):
+            st.warning("Attention le fichier token.txt est vide.")
+        
+        st.warning("Des temps de chargements supplémentaires auront lieu si vous décidez de choisir une autre ville que Nice - Côte d'Azur. Seul l'historique des données de cette ville est enregistré en back-up.")
         # Conteneur de saisie des paramètres
         with st.container():
+            
+            dict_of_city_id = getCityAvailable()
+            list_of_city = list(dict_of_city_id.keys())
+            
+            selected_city = st.selectbox("Veuillez choisir une ville : ", list_of_city)
+            # getting the id of the selected city
+            id_city = dict_of_city_id[selected_city]
             st.info("La profondeur maximale d'historique est de 20 années (01/01/2024)")
             get_history = st.checkbox("Voulez-vous modifier la profondeur de la simulation?")
 
@@ -54,7 +64,9 @@ def initLaunchGui():
             if launch_pricing:
                 with st.container():
                     # load the data
-                    pl_t = loadDataForPricing("weather_data_by_year.csv", start_date, end_date)
+                    pl_t = loadDataForPricing("weather_data_by_year.csv", start_date, end_date,id_city)
+                    if len(pl_t) == 0 :
+                        st.warning("Attention, la clé token est incorrecte.")
                     R_pl_t = getR_pl_t(CA, C_f, pl_bar, pl_t)
                     premium = getPremium(R_pl_t, round(float(((end_date - start_date).days) / 365), 2))
 
@@ -73,7 +85,7 @@ def initLaunchGui():
 
                 if benchmark_button:
                     # launch the benchmark
-                    lost, res_with_insurance, res_without_insurance = getBenchmark(benchmark_start_date, CA, C_f, pl_bar, ((end_date - start_date) / 365).days)
+                    lost, res_with_insurance, res_without_insurance = getBenchmark(benchmark_start_date, CA, C_f, pl_bar, ((end_date - start_date) / 365).days,id_city)
 
                     # Stocker les résultats du benchmark
                     st.session_state.benchmark_results = (lost, res_with_insurance, res_without_insurance)
@@ -84,7 +96,7 @@ def initLaunchGui():
                     st.write(f"Pertes (€) = {round(lost, 2)}")
                     st.write(f"Résultat avec assurance (€) = {round(res_with_insurance, 2)}")
                     st.write(f"Résultat sans assurance (€) = {round(res_without_insurance, 2)}")
-                    st.info(" ✅ Votre devis a été généré avec succès.")
+                    st.info(f"✅ Votre devis a été généré avec succès.")
 
                     # pdf generation
                     pdf_filename = "devis.pdf"
@@ -101,7 +113,7 @@ def initLaunchGui():
 
                     # check verification and set button download
                     if os.path.exists(pdf_filename):
-                        st.success("✅ PDF généré avec succès !")
+                        st.success(f"✅ PDF généré avec succès !")
 
                         # read the file
                         with open(pdf_filename, "rb") as pdf_file:
